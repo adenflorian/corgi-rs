@@ -202,34 +202,18 @@ pub fn build_stream<T: Sample>(
     )
 }
 pub fn build_stream2(device: &Device, config: &StreamConfig) -> Result<Stream, BuildStreamError> {
-    let sample_rate = config.sample_rate.0;
-    let audio_graph = Arc::new(Mutex::new(AudioGraph::new(sample_rate)));
-    let osc = Arc::new(Mutex::new(Osc::new(
-        audio_graph.clone(),
-        440.0,
-        OscWave::Triangle,
-    )));
-    let gain = Arc::new(Mutex::new(Gain::new(0.5)));
-    // osc.connect(gain.clone());
-    // gain.connect(&audio_graph.lock().unwrap().output);
-    gain.lock().unwrap().add_input(osc);
-    audio_graph.lock().unwrap().output.add_input(gain);
+    let mut audio_graph = create_graph(config.sample_rate.0);
 
-    let result = device.build_output_stream(
+    device.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            audio_graph.lock().unwrap().process(data);
-            println!("test")
+            audio_graph.process(data);
         },
         move |err| {
             // react to errors here.
             println!("{:?}", err);
         },
-    );
-
-    // dbg!(osc);
-
-    result
+    )
 }
 
 pub struct MyEguiApp {

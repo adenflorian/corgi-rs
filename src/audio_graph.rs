@@ -32,7 +32,8 @@ pub trait AudioNode {
     }
 }
 
-type AudioNodeTarget = Arc<Mutex<dyn AudioNode + Send + Sync>>;
+type AudioNodeTarget = Box<dyn AudioNode + Send>;
+type AudioGraphRef = AudioGraph;
 
 #[derive(Debug)]
 pub enum OscWave {
@@ -46,17 +47,17 @@ pub struct Osc {
     wave: OscWave,
     data: AudioNodeData,
     sample_clock: f32,
-    audio_graph: Arc<Mutex<AudioGraph>>,
+    sample_rate: u32,
 }
 
 impl Osc {
-    pub fn new(audio_graph: Arc<Mutex<AudioGraph>>, freq: f32, wave: OscWave) -> Osc {
+    pub fn new(sample_rate: u32, freq: f32, wave: OscWave) -> Osc {
         Osc {
             freq,
             wave,
             data: AudioNodeData::default(),
             sample_clock: 0.0,
-            audio_graph,
+            sample_rate,
         }
     }
 }
@@ -64,7 +65,7 @@ impl Osc {
 impl AudioNode for Osc {
     fn process(&mut self, data: &mut [f32]) {
         for sample in data {
-            let sample_rate = self.audio_graph.lock().unwrap().sample_rate as f32;
+            let sample_rate = self.sample_rate as f32;
 
             self.sample_clock = (self.sample_clock + 1.0) % sample_rate;
             let time_secs = self.sample_clock / sample_rate;
@@ -112,7 +113,7 @@ impl Gain {
 impl AudioNode for Gain {
     fn process(&mut self, data: &mut [f32]) {
         if let Some(input) = self.data.inputs.first_mut() {
-            input.lock().unwrap().process(data);
+            input.process(data);
 
             for sample in data {
                 *sample *= self.amount;
@@ -140,7 +141,7 @@ impl Output {
 impl AudioNode for Output {
     fn process(&mut self, data: &mut [f32]) {
         if let Some(input) = self.data.inputs.first_mut() {
-            input.lock().unwrap().process(data);
+            input.process(data);
             // done
         }
     }
@@ -154,19 +155,15 @@ struct AudioNodeData {
     inputs: Vec<AudioNodeTarget>,
 }
 
-pub fn test() {
-    let sample_rate = 48000;
-    let audio_graph = Arc::new(Mutex::new(AudioGraph::new(sample_rate)));
-    let osc = Arc::new(Mutex::new(Osc::new(
-        audio_graph.clone(),
-        440.0,
-        OscWave::Triangle,
-    )));
-    let gain = Arc::new(Mutex::new(Gain::new(0.5)));
-    // osc.connect(gain.clone());
-    // gain.connect(&audio_graph.lock().unwrap().output);
-    gain.lock().unwrap().add_input(osc);
-    audio_graph.lock().unwrap().output.add_input(gain);
+pub fn create_graph(sample_rate: u32) -> AudioGraph {
+    let mut audio_graph = AudioGraph::new(sample_rate);
+    let osc = Box::new(Osc::new(audio_graph.sample_rate, 440.0, OscWave::Triangle));
+    let mut gain = Box::new(Gain::new(0.5));
+    // osc.connect(gain);
+    // gain.connect(&audio_graph.output);
+    gain.add_input(osc);
+    audio_graph.output.add_input(gain);
     let mut data = [0_f32; 480];
-    audio_graph.lock().unwrap().process(&mut data);
+    audio_graph.process(&mut data);
+    audio_graph
 }

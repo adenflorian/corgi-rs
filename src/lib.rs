@@ -1,14 +1,18 @@
 #![allow(unused)]
 
 use std::{
+    cell::RefCell,
     collections::VecDeque,
     f32::consts::PI,
     sync::{mpsc::*, *},
 };
 
+use audio_graph::*;
 use cpal::{traits::*, *};
 
 use eframe::egui;
+
+pub mod audio_graph;
 
 pub fn run() {
     println!("Hello, world!");
@@ -65,8 +69,66 @@ pub fn run() {
     // stream.pause().unwrap();
 }
 
+pub fn run2() {
+    println!("Hello, world 2!");
+
+    let host = cpal::default_host();
+
+    let output_devices: Vec<_> = host.output_devices().unwrap().collect();
+
+    for device in output_devices {
+        let mut supported_configs_range: Vec<_> = device
+            .supported_output_configs()
+            .expect("error while querying configs")
+            .collect();
+        dbg!(device.name().unwrap());
+        dbg!(supported_configs_range);
+    }
+
+    let device = host
+        .default_output_device()
+        .expect("no output device available");
+
+    let mut supported_configs_range = device
+        .supported_output_configs()
+        .expect("error while querying configs");
+
+    let mut supported_configs: VecDeque<_> = supported_configs_range.collect();
+
+    dbg!(&supported_configs);
+
+    let first_config = supported_configs.pop_front();
+
+    let supported_config = first_config
+        .expect("no supported config?!")
+        .with_max_sample_rate();
+
+    let sample_format = supported_config.sample_format();
+
+    let config: StreamConfig = supported_config.into();
+
+    let (sen, rcv) = mpsc::channel::<f32>();
+    let freq_mutex = Arc::new(Mutex::new(Some(440.0_f32)));
+
+    let stream = build_stream2(&device, &config).unwrap();
+
+    // let stream = match sample_format {
+    //     SampleFormat::F32 => build_stream::<f32>(&device, &config, &freq_mutex, rcv),
+    //     SampleFormat::I16 => build_stream::<i16>(&device, &config, &freq_mutex, rcv),
+    //     SampleFormat::U16 => build_stream::<u16>(&device, &config, &freq_mutex, rcv),
+    // }
+    // .unwrap();
+
+    // stream.play().unwrap();
+
+    start_eframe(sen, freq_mutex, stream);
+
+    // stream.pause().unwrap();
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn start_eframe(sender: Sender<f32>, freq_mutex: Arc<Mutex<Option<f32>>>, stream: Stream) {
+    stream.play().unwrap();
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "sine wave freq slider",
@@ -138,6 +200,36 @@ pub fn build_stream<T: Sample>(
             println!("{:?}", err);
         },
     )
+}
+pub fn build_stream2(device: &Device, config: &StreamConfig) -> Result<Stream, BuildStreamError> {
+    let sample_rate = config.sample_rate.0;
+    let audio_graph = Arc::new(Mutex::new(AudioGraph::new(sample_rate)));
+    let osc = Arc::new(Mutex::new(Osc::new(
+        audio_graph.clone(),
+        440.0,
+        OscWave::Triangle,
+    )));
+    let gain = Arc::new(Mutex::new(Gain::new(0.5)));
+    // osc.connect(gain.clone());
+    // gain.connect(&audio_graph.lock().unwrap().output);
+    gain.lock().unwrap().add_input(osc);
+    audio_graph.lock().unwrap().output.add_input(gain);
+
+    let result = device.build_output_stream(
+        config,
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            audio_graph.lock().unwrap().process(data);
+            println!("test")
+        },
+        move |err| {
+            // react to errors here.
+            println!("{:?}", err);
+        },
+    );
+
+    // dbg!(osc);
+
+    result
 }
 
 pub struct MyEguiApp {

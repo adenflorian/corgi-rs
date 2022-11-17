@@ -202,11 +202,17 @@ pub fn build_stream<T: Sample>(
     )
 }
 pub fn build_stream2(device: &Device, config: &StreamConfig) -> Result<Stream, BuildStreamError> {
-    let mut audio_graph = create_graph(config.sample_rate.0);
+    let mut audio_graph = create_graph(config.sample_rate.0, config.channels as usize);
+
+    // let (sender, receiver) = mpsc::channel::<AudioGraph>();
+    // let mut ag2: Option<AudioGraph> = None;
 
     device.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            // while let Ok(ag) = receiver.try_recv() {
+            //     ag2 = Some(ag);
+            // }
             audio_graph.process(data);
         },
         move |err| {
@@ -215,6 +221,46 @@ pub fn build_stream2(device: &Device, config: &StreamConfig) -> Result<Stream, B
         },
     )
 }
+
+// trying to use inner cpal functions so thread i can initialize the thread, but having trouble getting access to the wasapi functions from here
+// pub fn build_stream3(device: &Device, config: &StreamConfig) -> Result<Stream, BuildStreamError> {
+//     let mut audio_graph = create_graph(config.sample_rate.0, config.channels as usize);
+
+//     let (sender, receiver) = mpsc::channel::<AudioGraph>();
+//     let mut ag2: Option<AudioGraph> = None;
+
+//     let mut data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+//         // while let Ok(ag) = receiver.try_recv() {
+//         //     ag2 = Some(ag);
+//         // }
+//         audio_graph.process(data);
+//     };
+
+//     let error_callback = move |err| {
+//         // react to errors here.
+//         println!("{:?}", err);
+//     };
+
+//     // device.build_output_stream_raw(
+//     //     config,
+//     //     f32::FORMAT,
+//     //     move |data, info| {
+//     //         data_callback(
+//     //             data.as_slice_mut()
+//     //                 .expect("host supplied incorrect sample type"),
+//     //             info,
+//     //         )
+//     //     },
+//     //     error_callback,
+//     // )
+
+//     let stream_inner = device.build_output_stream_raw_inner(config, sample_format)?;
+//     Ok(cpal::platform::Stream::new_output(
+//         stream_inner,
+//         data_callback,
+//         error_callback,
+//     ))
+// }
 
 pub struct MyEguiApp {
     freq: f32,

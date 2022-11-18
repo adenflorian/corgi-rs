@@ -29,6 +29,15 @@ impl AudioGraph {
     }
 }
 
+impl Debug for AudioGraph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("")
+            .field(&self.sample_rate)
+            .field(&self.channel_count)
+            .finish()
+    }
+}
+
 pub trait AudioNode {
     // fn connect(&self, target: AudioNodeTarget);
     fn add_input(&mut self, input: AudioNodeTarget);

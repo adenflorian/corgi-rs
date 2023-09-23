@@ -11,12 +11,12 @@ use rand::{thread_rng, Rng};
 pub struct AudioGraph {
     // nodes: Vec<Box<dyn AudioNode + Send>>,
     pub output: Output,
-    sample_rate: u32,
+    sample_rate: f32,
     channel_count: usize,
 }
 
 impl AudioGraph {
-    pub fn new(sample_rate: u32, channel_count: usize) -> Self {
+    pub fn new(sample_rate: f32, channel_count: usize) -> Self {
         AudioGraph {
             // nodes: Vec::new(),
             output: Output::new(),
@@ -62,13 +62,13 @@ pub struct Osc {
     data: AudioNodeData,
     sample_clock: f32,
     phasor: f32,
-    sample_rate: u32,
+    sample_rate: f32,
     channel_count: usize,
     s: f32,
 }
 
 impl Osc {
-    pub fn new(sample_rate: u32, channel_count: usize, freq: f32, wave: OscWave) -> Osc {
+    pub fn new(sample_rate: f32, channel_count: usize, freq: f32, wave: OscWave) -> Osc {
         Osc {
             freq,
             wave,
@@ -76,7 +76,7 @@ impl Osc {
             sample_clock: 0.0,
             sample_rate,
             channel_count,
-            s: 1.0 / sample_rate as f32,
+            s: 1.0 / sample_rate,
             phasor: 0.0,
         }
     }
@@ -85,14 +85,13 @@ impl Osc {
 impl AudioNode for Osc {
     fn process(&mut self, data: &mut [f32]) {
         // let mut rng = thread_rng();
-        let sample_rate = self.sample_rate as f32;
         let p = 1. / self.freq;
         // dbg!(self.phasor);
         for frame in data.chunks_mut(self.channel_count) {
-            // self.sample_clock = (self.sample_clock + 1.0) % sample_rate;
-            // let time_secs = self.sample_clock / sample_rate;
+            // self.sample_clock = (self.sample_clock + 1.0) % self.sample_rate;
+            // let time_secs = self.sample_clock / self.sample_rate;
             // self.sample_clock = (self.sample_clock + 1.0) % self.freq;
-            // let time_secs = self.sample_clock / sample_rate;
+            // let time_secs = self.sample_clock / self.sample_rate;
             self.phasor = (self.phasor + (self.s / p)) % 1.0;
 
             // let mut noise: f32 = rng.gen::<f32>() - 0.5; // generates a float between 0 and 1
@@ -218,7 +217,7 @@ fn process_inputs_to_data(inputs: &mut [Input], data: &mut [f32]) {
     }
 }
 
-pub fn create_graph(sample_rate: u32, channel_count: usize) -> AudioGraph {
+pub fn create_graph(sample_rate: f32, channel_count: usize) -> AudioGraph {
     let mut audio_graph = AudioGraph::new(sample_rate, channel_count);
     let osc1 = Box::new(Osc::new(
         audio_graph.sample_rate,

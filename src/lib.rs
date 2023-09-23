@@ -202,7 +202,7 @@ pub fn build_stream<T: Sample>(
     )
 }
 pub fn build_stream2(device: &Device, config: &StreamConfig) -> Result<Stream, BuildStreamError> {
-    let mut audio_graph = create_graph(config.sample_rate.0, config.channels as usize);
+    let mut audio_graph = create_graph(config.sample_rate.0 as f32, config.channels as usize);
 
     // let (sender, receiver) = mpsc::channel::<AudioGraph>();
     // let mut ag2: Option<AudioGraph> = None;
